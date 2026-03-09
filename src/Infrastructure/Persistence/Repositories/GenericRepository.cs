@@ -15,10 +15,10 @@ public class GenericRepository<T>(AppDbContext dbContext) : IRepository<T>
     protected readonly AppDbContext DbContext = dbContext;
     protected readonly DbSet<T> DbSet = dbContext.Set<T>();
 
-    public async Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+    public virtual async Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         await DbSet.FindAsync([id], cancellationToken);
 
-    public async Task<IReadOnlyList<T>> GetAllAsync(CancellationToken cancellationToken = default) =>
+    public virtual async Task<IReadOnlyList<T>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await DbSet.AsNoTracking().ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<T>> FindAsync(

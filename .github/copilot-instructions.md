@@ -1,173 +1,34 @@
-# GitHub Copilot – Workspace Instructions
+# Copilot instructions
 
-## Project Overview
-This is a .NET 10 Web API using **Clean Architecture**. Every feature flows through four layers:
+**Before any development or code generation, always systematically read all instruction files in `.github/instructions/`.** This is mandatory to ensure all project rules (DDD, Object Calisthenics, etc.) are loaded and applied correctly.
 
-```
-Domain  ←  Application  ←  Infrastructure  ←  Api
-```
+## Language Policy
 
-- **Domain** (`src/Domain`): entities, value objects, aggregates, domain events. Zero external dependencies.
-- **Application** (`src/Application`): use cases as CQRS commands/queries via MediatR. Abstractions (interfaces) only — no EF, no HTTP.
-- **Infrastructure** (`src/Infrastructure`): EF Core + SQL Server, external services. Implements Application interfaces.
-- **Api** (`src/Api`): ASP.NET Core minimal API, DI composition root. Thin — just routing and DI.
+All instructions and prompts in this repository must be written in English. This applies to:
+- All rule and instruction files in `.github/instructions/`
+- All prompt files in `.github/prompts/`
+- All documentation and code comments intended for contributors
 
----
+## Development code generation
 
-## Architecture Rules (always enforce these)
+When working with Csharp code, follow these instructions very carefully.
 
-1. **Dependency direction is strict**: Domain knows nothing. Application knows only Domain. Infrastructure knows Application + Domain. Api knows everything.
-2. **No `new` keyword for services** in command/query handlers — always inject via constructor.
-3. **Commands return `Result<T>`**, not raw values or exceptions for expected failures.
-4. **Every command must have a FluentValidation validator** in the same file.
-5. **Do not put business logic in controllers/endpoints** — only call `mediator.Send()`.
-6. **Repositories are generic** (`IRepository<T>`) — domain-specific query methods go in typed repository subclasses.
-7. **Domain entities raise domain events** — never publish them directly from handlers.
+It is **EXTREMELY important that you follow the instructions in files very carefully.**
 
----
+### Workflow implementation
 
-## Code Conventions
+**IMPORTANT:** Always follow these steps when implementing new features:
 
-### Naming
-| Element | Convention | Example |
-|---|---|---|
-| Namespace | Match folder | `Application.Features.Orders.Commands` |
-| Command | Verb + Noun + `Command` | `CreateOrderCommand` |
-| Query | Verb + Noun + `Query` | `GetOrderByIdQuery` |
-| Handler | Same name + `Handler` suffix | `CreateOrderCommandHandler` |
-| DTO | Noun + `Dto` | `OrderDto` |
-| Validator | Same name as command + `Validator` | `CreateOrderCommandValidator` |
-| Endpoint class | Noun + `Endpoints` | `OrdersEndpoints` |
+1. Consult any relevant instructions files listed below and start by listing which instruction files have been used to guide the implementation (e.g. `Instructions used: [csharp.instructions.md, playwright-dotnet.instructions.md]`).
 
-### File Structure for a New Feature
+2. When working with csharp code, Always run `dotnet test` or `dotnet build` to verify that all tests pass before committing your changes.
+   Don't ask to run the tests, just do it. If you are not sure how to run the tests, ask for help.
+   You can also use `dotnet watch test` to run the tests automatically when you change the code.
+   
+3. Fix any compiler warnings and errors before going to the next step.
 
-```
-src/Application/Features/{Feature}/
-  Commands/
-    Create{Feature}Command.cs       ← record + validator + handler
-    Update{Feature}Command.cs
-    Delete{Feature}Command.cs
-  Queries/
-    Get{Feature}sQuery.cs           ← record + dto
-    Get{Feature}sQueryHandler.cs    ← handler
-    Get{Feature}ByIdQuery.cs
-    Get{Feature}ByIdQueryHandler.cs
+When you see paths like `/[project]/features/[feature]/` in rules, replace [project] with the name of the project you are working on (e.g. `Ordering`), and `[feature]` with the name of the feature you are working on (e.g. `VerifyOrAddPayment`).
 
-src/Domain/{Feature}/
-  {Feature}.cs                      ← aggregate root
-  {Feature}CreatedEvent.cs          ← domain event (if needed)
-  Value objects inline or separate
+## Rule Usage Traceability
 
-src/Infrastructure/Persistence/
-  Configurations/{Feature}Configuration.cs   ← IEntityTypeConfiguration<T>
-  Repositories/{Feature}Repository.cs        ← optional typed repo
-
-src/Api/Endpoints/
-  {Feature}Endpoints.cs
-
-tests/UnitTests/Features/{Feature}/
-  Create{Feature}CommandValidatorTests.cs
-  Create{Feature}CommandHandlerTests.cs
-
-tests/IntegrationTests/Endpoints/
-  {Feature}EndpointsTests.cs
-```
-
----
-
-## Patterns to Follow
-
-### Command with Validator and Handler (in ONE file)
-```csharp
-using Application.Common.Models;
-using FluentValidation;
-
-namespace Application.Features.Orders.Commands;
-
-public sealed record CreateOrderCommand(string CustomerId, decimal Amount) : IRequest<Result<Guid>>;
-
-public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
-{
-    public CreateOrderCommandValidator()
-    {
-        RuleFor(x => x.CustomerId).NotEmpty();
-        RuleFor(x => x.Amount).GreaterThan(0);
-    }
-}
-
-public sealed class CreateOrderCommandHandler(
-    IRepository<Order> repository,
-    IUnitOfWork unitOfWork)
-    : IRequestHandler<CreateOrderCommand, Result<Guid>>
-{
-    public async Task<Result<Guid>> Handle(CreateOrderCommand request, CancellationToken ct)
-    {
-        var order = Order.Create(request.CustomerId, request.Amount);
-        await repository.AddAsync(order, ct);
-        await unitOfWork.SaveChangesAsync(ct);
-        return Result.Success(order.Id);
-    }
-}
-```
-
-### Minimal API Endpoint
-```csharp
-public static class OrdersEndpoints
-{
-    public static IEndpointRouteBuilder MapOrdersEndpoints(this IEndpointRouteBuilder app)
-    {
-        var group = app.MapGroup("/api/orders").WithTags("Orders").WithOpenApi();
-        group.MapPost("/", CreateOrderAsync).WithSummary("Create order").Produces<Guid>(201).ProducesValidationProblem();
-        return app;
-    }
-
-    private static async Task<IResult> CreateOrderAsync(CreateOrderCommand cmd, ISender mediator, CancellationToken ct)
-    {
-        var result = await mediator.Send(cmd, ct);
-        return result.IsSuccess
-            ? Results.Created($"/api/orders/{result.Value}", result.Value)
-            : Results.Problem(result.Error, statusCode: 422);
-    }
-}
-```
-
-### Domain Entity
-```csharp
-public sealed class Order : AggregateRoot
-{
-    public string CustomerId { get; private set; } = default!;
-    public decimal Amount { get; private set; }
-
-    private Order() { }  // EF Core
-
-    public static Order Create(string customerId, decimal amount)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(customerId);
-        if (amount <= 0) throw new DomainException("Amount must be positive.");
-
-        var order = new Order { CustomerId = customerId, Amount = amount };
-        order.RaiseDomainEvent(new OrderCreatedEvent(order.Id));
-        return order;
-    }
-}
-```
-
----
-
-## Testing Guidelines
-
-- **Unit tests**: test validators and handlers in isolation. Use `NSubstitute` for mocks, `FluentAssertions` for assertions, `FluentValidation.TestHelper` for validators.
-- **Integration tests**: use `AppFactory` (Testcontainers SQL Server). Test full HTTP round-trips.
-- Name tests using: `MethodUnderTest_StateUnderTest_ExpectedBehavior`
-- Arrange/Act/Assert pattern with blank lines between sections.
-
----
-
-## What Copilot Should NOT Do
-
-- Do not add `[ApiController]` or `ControllerBase`  — this project uses Minimal APIs.
-- Do not put logic in `Program.cs` — only registration and pipeline setup.
-- Do not use `var` for return types in public methods — always use explicit types.
-- Do not skip validators for commands.
-- Do not reference `Infrastructure` from `Application` — only interfaces.
-- Do not create static helper classes with business logic — use domain services or extension methods on domain types.
+Whenever you use a rule from any instruction file, you must explicitly state in your prompt or code generation output which rule(s) have been used, by listing the relevant instruction file(s) as a clean, bulleted list.

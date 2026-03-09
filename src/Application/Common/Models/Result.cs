@@ -46,4 +46,8 @@ public sealed class Result
     public static Result<T> Success<T>(T value) => Result<T>.Success(value);
     public static Result Failure(string error) => new(false, error);
     public static Result<T> Failure<T>(string error) => Result<T>.Failure(error);
+
+    /// <summary>Matches success or failure and produces a result of <typeparamref name="TResult"/>.</summary>
+    public TResult Match<TResult>(Func<TResult> onSuccess, Func<string, TResult> onFailure) =>
+        IsSuccess ? onSuccess() : onFailure(Error!);
 }

@@ -1,4 +1,3 @@
-using Api.Endpoints;
 using Api.Middleware;
 using Application;
 using Infrastructure;
@@ -34,6 +33,11 @@ builder.Services.AddOpenTelemetry()
             tracing.AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint));
     });
 
+// -- Controllers -----------------------------------------------------------------
+builder.Services.AddControllers()
+    .AddJsonOptions(opts =>
+        opts.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
 // -- Problem Details (RFC 9457) --------------------------------------------------
 builder.Services.AddProblemDetails();
 
@@ -68,8 +72,8 @@ if (!app.Environment.IsProduction())
     });
 }
 
-// -- Minimal API endpoint groups ------------------------------------------------
-app.MapSamplesEndpoints();
+// -- Controllers ----------------------------------------------------------------
+app.MapControllers();
 
 // -- Health check ---------------------------------------------------------------
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTimeOffset.UtcNow }))
