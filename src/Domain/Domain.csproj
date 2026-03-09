@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Domain: pure business rules.
+    No dependencies on other layers or external packages.
+  -->
+
+</Project>

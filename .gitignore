@@ -1,0 +1,51 @@
+## .NET
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+TestResults/
+coverage/
+*.trx
+*.coveragexml
+
+## NuGet
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+nuget.config
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## VS Code
+.vscode/
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/settings.json
+
+## Visual Studio
+.localhistory/
+*.DS_Store
+
+## Secrets & environment files
+.env
+.env.*
+secrets.json
+**/secrets.json
+src/Api/appsettings.Local.json
+
+## Docker
+docker-compose.override.yml
+*.pid
+
+## Logs
+logs/
+*.log
